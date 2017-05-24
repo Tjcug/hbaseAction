@@ -3,16 +3,13 @@ package com.basic.hbase;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.PropertiesConfiguration;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
-import org.apache.hadoop.hbase.HColumnDescriptor;
-import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.TableName;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
-import org.apache.hadoop.hbase.client.HTable;
-import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.*;
+import org.apache.hadoop.hbase.client.*;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
@@ -25,6 +22,7 @@ public class HbaseTest {
     private HTable hTable;
 
     public static final String TN="phone";
+    private Logger log= LoggerFactory.getLogger(HbaseTest.class);
 
     @Before
     public void begin() throws IOException, ConfigurationException {
@@ -72,8 +70,36 @@ public class HbaseTest {
 
     @Test
     public void insert() throws IOException {
-        String rowkey="0001";
+        //RowKey的设计
+        //手机号_时间戳
+        String rowkey="13072783289_2016123123123";
         Put put=new Put(rowkey.getBytes());
+
+        put.addColumn("cf1".getBytes(), "type".getBytes(),"1".getBytes());
+        //打电话的时间 通话时长
+        put.addColumn("cf1".getBytes(), "time".getBytes(),"100".getBytes());
+        //目标手机号码
+        put.addColumn("cf1".getBytes(), "pnumber".getBytes(),"177123123123".getBytes());
+
         hTable.put(put);
+    }
+
+    @Test
+    public void get() throws IOException {
+        String rowkey="13072783289_2016123123123";
+        Get get=new Get(rowkey.getBytes());
+//        get.addColumn("cf1".getBytes(),"type".getBytes());
+//        get.addColumn("cf1".getBytes(),"time".getBytes());
+
+        Result res = hTable.get(get);
+        Cell celltype = res.getColumnLatestCell("cf1".getBytes(), "type".getBytes());
+        log.info(new String(CellUtil.cloneValue(celltype)));
+        Cell celltime = res.getColumnLatestCell("cf1".getBytes(), "time".getBytes());
+        log.info(new String(CellUtil.cloneValue(celltime)));
+//        for(Cell cell : res.rawCells()){
+//            log.debug("列簇为：" + new String(CellUtil.cloneFamily(cell)));
+//            log.debug("列修饰符为："+new String(CellUtil.cloneQualifier(cell)));
+//            log.debug("值为：" + new String(CellUtil.cloneValue(cell)));
+//        }
     }
 }
