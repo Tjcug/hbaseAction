@@ -133,15 +133,6 @@ public class HbaseTest {
     }
 
     /**
-     * 随机生成时间
-     * @param prefix 年月日
-     * @return
-     */
-    public String getDate2(String prefix){
-        return prefix+String.format("%02d%02d%02d",new Object[]{random.nextInt(24),random.nextInt(60),random.nextInt(60)});
-    }
-
-    /**
      * 插入十个手机号 100条通话记录
      * 满足查询 时间降序排序
      */
@@ -168,46 +159,6 @@ public class HbaseTest {
             }
         }
         hTable.put(putList);
-    }
-
-    /**
-     * 利用Google PortocolBuffer 优化HBase
-     * 减少数据存储占用大小
-     * 十个手机号 一天内随机产生100条通话记录
-     * @throws ParseException
-     * @throws IOException
-     */
-    @Test
-    public void insertDB2() throws ParseException, IOException {
-        SimpleDateFormat sdf=new SimpleDateFormat("yyyyMMddHHmmss");
-
-        for(int i=0;i<10;i++){
-            String rowkey = "";
-            String phonenumber=getPhoneNumber("186");
-
-            //一天的通话记录
-            Phone.phoneday.Builder pday=Phone.phoneday.newBuilder();
-            for(int j=0;j<100;j++){
-                String phoneDate=getDate2("20170525");
-                long dateTimeLong = sdf.parse(phoneDate).getTime();
-                rowkey= phonenumber+"_"+String.valueOf(Long.MAX_VALUE - dateTimeLong);
-                log.info(rowkey);
-
-                //一条通话记录
-                Phone.phonedetail.Builder detail = Phone.phonedetail.newBuilder();
-                detail.setDuration(random.nextInt(1000)+"");
-                detail.setPnumber(getPhoneNumber("130"));
-                detail.setTime(phoneDate);
-                detail.setType(random.nextInt(2)+"");
-
-                pday.addPhonelist(detail);
-
-            }
-            Put put=new Put(rowkey.getBytes());
-            put.addColumn("cf1".getBytes(),"pady".getBytes(),pday.build().toByteArray());
-
-            hTable.put(put);
-        }
     }
 
     /**
