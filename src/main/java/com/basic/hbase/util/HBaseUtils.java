@@ -102,6 +102,17 @@ public class HBaseUtils {
 
 
     /**
+     * 查看已有表
+     * @throws IOException
+     */
+    public static void listTables() throws IOException {
+        HTableDescriptor hTableDescriptors[] = admin.listTables();
+        for(HTableDescriptor hTableDescriptor :hTableDescriptors){
+            System.out.println(hTableDescriptor.getNameAsString());
+        }
+    }
+
+    /**
      *  删除列族
      * @param tableName
      * @param FamilyName
@@ -463,4 +474,18 @@ public class HBaseUtils {
         return 0;
     }
 
+    /**
+     * 关闭连接
+     */
+    public static  void close(){
+        try {
+            if(null != admin)
+                admin.close();
+            if(null != connection)
+                connection.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+    }
 }
