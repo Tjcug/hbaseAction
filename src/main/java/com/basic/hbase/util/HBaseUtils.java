@@ -292,6 +292,7 @@ public class HBaseUtils {
             resultList.add(r);
         }
         table.close();
+        ss.close();
         return resultList;
     }
 
@@ -336,6 +337,7 @@ public class HBaseUtils {
             resultList.add(r);
         }
         table.close();
+        ss.close();
         return resultList;
     }
 
@@ -414,6 +416,7 @@ public class HBaseUtils {
             resultList.add(result);
         }
         table.close();
+        ss.close();
         return resultList;
     }
 
@@ -464,6 +467,7 @@ public class HBaseUtils {
             resultList.add(result);
         }
         table.close();
+        ss.close();
         return resultList;
     }
 
