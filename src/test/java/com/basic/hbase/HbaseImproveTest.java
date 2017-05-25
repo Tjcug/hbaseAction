@@ -1,5 +1,6 @@
 package com.basic.hbase;
 
+import com.basic.hbase.model.Phone;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.PropertiesConfiguration;
 import org.apache.hadoop.conf.Configuration;

@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -68,10 +69,51 @@ public class HBaseUtils {
             }
             admin.createTable(hTableDescriptor);
             log.debug("create table:" + tableName + "  success");
-     }
+        }
      }
 
-     /**
+    /**
+     * ============================================================================================
+     * pre-Creating Regions 创建Hbase Table的时候做预分区处理
+     */
+    public static boolean createTable(String tableName,HTableDescriptor hTableDescriptor,byte[][]splits) throws Exception {
+        if(admin.tableExists(TableName.valueOf(tableName))) {
+            log.debug("table already exists");
+            return false;
+        } else {
+            admin.createTable(hTableDescriptor,splits);
+            log.debug("create table:" + tableName + "  success");
+        }
+        return true;
+    }
+
+    /**
+     * 得到Regions 分区 只能针对那种数字型的RowKey
+     * @param startKeys
+     * @param endKey
+     * @param numRegions
+     * @return
+     */
+    public static byte[][] getHexSplits(String startKeys,String endKey,int numRegions){
+        //start:001 end:1000 numReginon10
+        byte[][]splits=new byte[numRegions-1][];
+        BigInteger lowestKey=new BigInteger(startKeys,16);
+        BigInteger highestKey=new BigInteger(endKey,16);
+        BigInteger range=highestKey.subtract(lowestKey);
+        BigInteger regionIncrement=range.divide(BigInteger.valueOf(numRegions));
+        lowestKey=lowestKey.add(regionIncrement);
+        for(int i=0;i< numRegions-1;i++){
+            BigInteger key=lowestKey.add(regionIncrement.multiply(BigInteger.valueOf(i)));
+            byte[]b =String.format("%016x",key).getBytes();
+            splits[i]=b;
+        }
+        return splits;
+    }
+    /**
+     * ============================================================================================
+     */
+
+    /**
      * 删除 Hbase 表
      * @param tableName
      * @throws IOException
