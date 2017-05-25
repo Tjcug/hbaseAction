@@ -5,6 +5,10 @@ import org.apache.commons.configuration.PropertiesConfiguration;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.*;
 import org.apache.hadoop.hbase.client.*;
+import org.apache.hadoop.hbase.filter.CompareFilter;
+import org.apache.hadoop.hbase.filter.FilterList;
+import org.apache.hadoop.hbase.filter.PrefixFilter;
+import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -12,6 +16,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
 
 /**
  * locate com.basic.hbase
@@ -22,7 +31,7 @@ public class HbaseTest {
     private HTable hTable;
 
     public static final String TN="phone";
-    private Logger log= LoggerFactory.getLogger(HbaseTest.class);
+    private static Logger log= LoggerFactory.getLogger(HbaseTest.class);
 
     @Before
     public void begin() throws IOException, ConfigurationException {
@@ -101,5 +110,154 @@ public class HbaseTest {
 //            log.debug("列修饰符为："+new String(CellUtil.cloneQualifier(cell)));
 //            log.debug("值为：" + new String(CellUtil.cloneValue(cell)));
 //        }
+    }
+
+    private Random random=new Random();
+
+    /**
+     * 随机生成电话号码
+     * @param prefix 电话号码前缀130、186、170
+     * @return
+     */
+    public String getPhoneNumber(String prefix){
+        return prefix+String.format("%08d", random.nextInt(99999999));
+    }
+
+    /**
+     * 随机生成时间
+     * @param year 年份2017
+     * @return
+     */
+    public String getDate(String year){
+        return year+String.format("%02d%02d%02d%02d%02d",new Object[]{random.nextInt(12)+1,random.nextInt(30)+1,random.nextInt(24),random.nextInt(60),random.nextInt(60)});
+    }
+
+    /**
+     * 随机生成时间
+     * @param prefix 年月日
+     * @return
+     */
+    public String getDate2(String prefix){
+        return prefix+String.format("%02d%02d%02d",new Object[]{random.nextInt(24),random.nextInt(60),random.nextInt(60)});
+    }
+
+    /**
+     * 插入十个手机号 100条通话记录
+     * 满足查询 时间降序排序
+     */
+    @Test
+    public void insertDB() throws ParseException, IOException {
+        List<Put> putList=new ArrayList<>();
+        for(int i=0;i<10;i++){
+            String rowkey;
+            String phonenumber=getPhoneNumber("186");
+            for(int j=0;j<100;j++){
+                String phoneDate=getDate("2017");
+                SimpleDateFormat sdf=new SimpleDateFormat("yyyyMMddHHmmss");
+                long dateTimeLong = sdf.parse(phoneDate).getTime();
+                rowkey= phonenumber+"_"+String.valueOf(Long.MAX_VALUE - dateTimeLong);
+
+                log.info(rowkey);
+
+                Put put=new Put(rowkey.getBytes());
+                put.addColumn("cf1".getBytes(),"type".getBytes(),(random.nextInt(2)+"").getBytes());
+                put.addColumn("cf1".getBytes(),"time".getBytes(),phoneDate.getBytes());//设置时间戳
+                put.addColumn("cf1".getBytes(),"duration".getBytes(),(random.nextInt(1000)+"").getBytes());//设置通话时长
+                put.addColumn("cf1".getBytes(),"pnumber".getBytes(),getPhoneNumber("130").getBytes());
+                putList.add(put);
+            }
+        }
+        hTable.put(putList);
+    }
+
+    /**
+     * 利用Google PortocolBuffer 优化HBase
+     * 减少数据存储占用大小
+     * 十个手机号 一天内随机产生100条通话记录
+     * @throws ParseException
+     * @throws IOException
+     */
+    @Test
+    public void insertDB2() throws ParseException, IOException {
+        SimpleDateFormat sdf=new SimpleDateFormat("yyyyMMddHHmmss");
+
+        for(int i=0;i<10;i++){
+            String rowkey = "";
+            String phonenumber=getPhoneNumber("186");
+
+            //一天的通话记录
+            Phone.phoneday.Builder pday=Phone.phoneday.newBuilder();
+            for(int j=0;j<100;j++){
+                String phoneDate=getDate2("20170525");
+                long dateTimeLong = sdf.parse(phoneDate).getTime();
+                rowkey= phonenumber+"_"+String.valueOf(Long.MAX_VALUE - dateTimeLong);
+                log.info(rowkey);
+
+                //一条通话记录
+                Phone.phonedetail.Builder detail = Phone.phonedetail.newBuilder();
+                detail.setDuration(random.nextInt(1000)+"");
+                detail.setPnumber(getPhoneNumber("130"));
+                detail.setTime(phoneDate);
+                detail.setType(random.nextInt(2)+"");
+
+                pday.addPhonelist(detail);
+
+            }
+            Put put=new Put(rowkey.getBytes());
+            put.addColumn("cf1".getBytes(),"pady".getBytes(),pday.build().toByteArray());
+
+            hTable.put(put);
+        }
+    }
+
+    /**
+     * 查询某个手机号下某个月份的所有通话详单
+     */
+    @Test
+    public void scanDB() throws IOException, ParseException {
+        //18692504352_2016 二月份
+        Scan scan=new Scan();
+        SimpleDateFormat sdf=new SimpleDateFormat("yyyyMMddHHmmss");
+        String startRowKey="18692504352_"+(Long.MAX_VALUE-sdf.parse("20170901000000").getTime());
+        scan.setStartRow(startRowKey.getBytes());
+        String stopRowKey="18692504352_"+(Long.MAX_VALUE-sdf.parse("20170801000000").getTime());
+        scan.setStopRow(stopRowKey.getBytes());
+
+        ResultScanner scanner = hTable.getScanner(scan);
+        for(Result res : scanner){
+            log.info("===================================================");
+            for(Cell cell : res.rawCells()){
+                log.info("列修饰符为："+new String(CellUtil.cloneQualifier(cell))+" 值为：" + new String(CellUtil.cloneValue(cell)));
+            }
+            log.info("===================================================");
+        }
+    }
+
+    /**
+     * 使用Fliter过滤器 进行Scan Hbase
+     * 查询某个手机号 所有主叫type=0 的通话详单
+     */
+    @Test
+    public void scanDB2() throws IOException {
+        //18692504352
+        FilterList filterList=new FilterList(FilterList.Operator.MUST_PASS_ALL);
+        //前缀过滤器 针对rowkey
+        PrefixFilter prefixFilter=new PrefixFilter("18692504352".getBytes());
+        SingleColumnValueFilter valueFilter=new SingleColumnValueFilter("cf1".getBytes(),"type".getBytes(), CompareFilter.CompareOp.EQUAL,"1".getBytes());
+        filterList.addFilter(prefixFilter);
+        filterList.addFilter(valueFilter);
+        Scan scan=new Scan();
+
+        scan.setFilter(filterList);
+        ResultScanner scanner = hTable.getScanner(scan);
+        for(Result res : scanner){
+            log.info("===================================================");
+            String rowkey=new String(res.getColumnLatestCell("cf1".getBytes(),"type".getBytes()).getRow());
+            log.info("rowKey: "+rowkey);
+            for(Cell cell : res.rawCells()){
+                log.info("列修饰符为："+new String(CellUtil.cloneQualifier(cell))+" 值为：" + new String(CellUtil.cloneValue(cell)));
+            }
+            log.info("===================================================");
+        }
     }
 }
